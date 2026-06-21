@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   ScrollView,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,7 +24,9 @@ export default function FinishRentalScreen() {
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [rentalData, setRentalData] = useState<any>(null);
+
   const [jarima, setJarima] = useState(0);
+  const [jarimaKechirish, setJarimaKechirish] = useState(false); // 🎛 YANGI: Jarimani kechirish holati
 
   const xabarChikarish = (sarlovha: string, matn: string) => {
     Platform.OS === "web"
@@ -43,7 +46,6 @@ export default function FinishRentalScreen() {
 
         setRentalData(data);
 
-        // Jarimani hisoblash (Agar vaqtidan o'tib ketgan bo'lsa)
         const hozir = new Date();
         const kutilganVaqt = new Date(data.kutilayotgan_vaqt);
 
@@ -51,11 +53,7 @@ export default function FinishRentalScreen() {
           const kechikkanSoat = Math.ceil(
             (hozir.getTime() - kutilganVaqt.getTime()) / (1000 * 60 * 60),
           );
-          const soatlik =
-            data.cars?.soatlik_narx > 0
-              ? data.cars.soatlik_narx
-              : data.cars?.kunlik_narx / 24;
-          setJarima(Math.round(kechikkanSoat * soatlik));
+          setJarima(kechikkanSoat * 50000);
         }
       } catch (err: any) {
         xabarChikarish("Xatolik", err.message);
@@ -66,23 +64,24 @@ export default function FinishRentalScreen() {
     ijaraniYuklash();
   }, [rentalId]);
 
+  // Agar jarima kechirilsa = 0, yo'qsa = haqiqiy jarima
+  const amaldagiJarima = jarimaKechirish ? 0 : jarima;
+
   const ijaraniYakunlash = async () => {
     setSubmitLoading(true);
     try {
-      // 1. Ijarani yopamiz
       const { error: rentalError } = await supabase
         .from("rentals")
         .update({
           status: "yakunlangan",
           tugash_vaqti: new Date().toISOString(),
-          jarima_summa: jarima,
-          umumiy_summa: rentalData.asl_narx + jarima,
+          jarima_summa: amaldagiJarima,
+          umumiy_summa: rentalData.asl_narx + amaldagiJarima,
         })
         .eq("id", rentalId);
 
       if (rentalError) throw rentalError;
 
-      // 2. Mashinani bo'shatamiz
       const { error: carError } = await supabase
         .from("cars")
         .update({ holati: "bo'sh" })
@@ -162,22 +161,55 @@ export default function FinishRentalScreen() {
           </View>
 
           {jarima > 0 && (
-            <View style={styles.row}>
-              <Text style={[styles.label, { color: "#DC2626" }]}>
-                Kechikkanlik jarimasi:
-              </Text>
-              <Text style={[styles.value, { color: "#DC2626" }]}>
-                +{formatPrice(jarima)}
-              </Text>
-            </View>
+            <>
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: "#DC2626" }]}>
+                  Kechikkanlik jarimasi:
+                </Text>
+                <Text
+                  style={[
+                    styles.value,
+                    {
+                      color: "#DC2626",
+                      textDecorationLine: jarimaKechirish
+                        ? "line-through"
+                        : "none",
+                    },
+                  ]}
+                >
+                  +{formatPrice(jarima)}
+                </Text>
+              </View>
+
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>Jarimani kechirish</Text>
+                <Switch
+                  value={jarimaKechirish}
+                  onValueChange={setJarimaKechirish}
+                  trackColor={{ false: "#FECACA", true: "#34D399" }}
+                  thumbColor={
+                    Platform.OS === "ios"
+                      ? undefined
+                      : jarimaKechirish
+                        ? "#10B981"
+                        : "#EF4444"
+                  }
+                />
+              </View>
+            </>
           )}
 
-          <View style={[styles.divider, { backgroundColor: "#CBD5E1" }]} />
+          <View
+            style={[
+              styles.divider,
+              { backgroundColor: "#CBD5E1", marginTop: 16 },
+            ]}
+          />
 
           <View style={styles.row}>
             <Text style={styles.totalLabel}>Jami Summa:</Text>
             <Text style={styles.totalValue}>
-              {formatPrice(rentalData?.asl_narx + jarima)}
+              {formatPrice(rentalData?.asl_narx + amaldagiJarima)}
             </Text>
           </View>
         </View>
@@ -273,6 +305,20 @@ const styles = StyleSheet.create({
     color: "#166534",
     marginBottom: 16,
   },
+
+  // 🎛 Switch dizayni
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  switchLabel: { fontSize: 14, fontWeight: "700", color: "#991B1B" },
+
   totalLabel: { fontSize: 18, color: "#166534", fontWeight: "800" },
   totalValue: { fontSize: 22, color: "#15803D", fontWeight: "900" },
   finishBtn: {

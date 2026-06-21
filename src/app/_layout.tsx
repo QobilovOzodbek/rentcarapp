@@ -64,6 +64,11 @@ export default function RootLayout() {
               name="extend-rental"
               options={{ headerShown: false, presentation: "modal" }}
             />
+            {/* Shu qatorni qo'shing: */}
+            <Stack.Screen
+              name="car-history"
+              options={{ headerShown: false, presentation: "modal" }}
+            />
           </Stack>
         </View>
       </View>

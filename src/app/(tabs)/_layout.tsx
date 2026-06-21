@@ -51,6 +51,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: "Tarix",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="time" size={24} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

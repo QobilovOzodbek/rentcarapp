@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,9 +34,20 @@ export default function ExtendRentalScreen() {
   const [qoshimcha, setQoshimcha] = useState("");
   const [turi, setTuri] = useState<"soat" | "kun">("soat");
   const [loading, setLoading] = useState(false);
+  const [jarimaKechirish, setJarimaKechirish] = useState(false); // 🎛 Jarimani kechirish
+
+  const hozir = new Date();
+  const kechikkan = hozir > joriyVaqt;
+  const kechikkanSoat = kechikkan
+    ? Math.ceil((hozir.getTime() - joriyVaqt.getTime()) / (1000 * 60 * 60))
+    : 0;
+  const kechikkanJarima = kechikkanSoat * 50000;
+
+  const amaldagiJarima = jarimaKechirish ? 0 : kechikkanJarima;
+  const hisoblashBoshlanishi = kechikkan ? hozir : joriyVaqt;
 
   const qoshimchaMiqdor = Number(qoshimcha) || 0;
-  const yangiVaqt = new Date(joriyVaqt);
+  const yangiVaqt = new Date(hisoblashBoshlanishi);
   let qoshimchaSumma = 0;
 
   if (turi === "soat") {
@@ -55,11 +67,17 @@ export default function ExtendRentalScreen() {
     }
 
     setLoading(true);
+    const yangiUmumiySumma = joriySumma + qoshimchaSumma + amaldagiJarima;
+
+    // 🚀 YANGILANGAN MANTIQ: Yangi vaqtga qarab Telegram bot bildirishnomalarini qayta faollashtiramiz
     const { error } = await supabase
       .from("rentals")
       .update({
         kutilayotgan_vaqt: yangiVaqt.toISOString(),
-        asl_narx: joriySumma + qoshimchaSumma,
+        asl_narx: yangiUmumiySumma,
+        notified_2h: false,
+        notified_1h: false,
+        notified_30m: false,
       })
       .eq("id", rentalId);
 
@@ -114,6 +132,39 @@ export default function ExtendRentalScreen() {
                 </Text>
               </Text>
             </View>
+
+            {kechikkan && (
+              <View style={styles.warningCard}>
+                <View style={styles.warningHeader}>
+                  <Ionicons name="warning" size={24} color="#DC2626" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.warningTitle}>
+                      Mijoz {kechikkanSoat} soat kechikdi!
+                    </Text>
+                    <Text style={styles.warningDesc}>
+                      Vaqtida ogohlantirmagani uchun{" "}
+                      {formatPrice(kechikkanJarima)} jarima yozildi.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>Jarimani kechirish</Text>
+                  <Switch
+                    value={jarimaKechirish}
+                    onValueChange={setJarimaKechirish}
+                    trackColor={{ false: "#FECACA", true: "#34D399" }}
+                    thumbColor={
+                      Platform.OS === "ios"
+                        ? undefined
+                        : jarimaKechirish
+                          ? "#10B981"
+                          : "#EF4444"
+                    }
+                  />
+                </View>
+              </View>
+            )}
 
             <Text style={styles.label}>Nimaga qarab uzaytiramiz?</Text>
             <View style={styles.typeSelector}>
@@ -179,21 +230,36 @@ export default function ExtendRentalScreen() {
                   </Text>
                 </View>
                 <View style={styles.previewDivider} />
+
+                {kechikkan && !jarimaKechirish && (
+                  <View style={styles.previewRow}>
+                    <Text style={[styles.previewLabel, { color: "#DC2626" }]}>
+                      Kechikkanlik jarimasi:
+                    </Text>
+                    <Text style={[styles.previewValue, { color: "#DC2626" }]}>
+                      +{formatPrice(kechikkanJarima)}
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Qo'shimcha to'lov:</Text>
+                  <Text style={styles.previewLabel}>Uzaytirish narxi:</Text>
                   <Text style={[styles.previewValue, { color: "#15803D" }]}>
                     +{formatPrice(qoshimchaSumma)}
                   </Text>
                 </View>
+
+                <View style={styles.previewDivider} />
+
                 <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Umumiy narx:</Text>
+                  <Text style={styles.previewLabel}>Umumiy yangi narx:</Text>
                   <Text
                     style={[
                       styles.previewValue,
                       { fontSize: 18, color: "#1E3A8A" },
                     ]}
                   >
-                    {formatPrice(joriySumma + qoshimchaSumma)}
+                    {formatPrice(joriySumma + qoshimchaSumma + amaldagiJarima)}
                   </Text>
                 </View>
               </View>
@@ -257,6 +323,40 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   infoDesc: { fontSize: 13, color: "#1E3A8A" },
+
+  // 🎛 Switch va Ogohlantirish dizayni
+  warningCard: {
+    backgroundColor: "#FEF2F2",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  warningHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  warningTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#B91C1C",
+    marginBottom: 4,
+  },
+  warningDesc: { fontSize: 13, color: "#991B1B", lineHeight: 18 },
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  switchLabel: { fontSize: 14, fontWeight: "700", color: "#991B1B" },
+
   label: {
     fontSize: 15,
     fontWeight: "700",
@@ -287,7 +387,7 @@ const styles = StyleSheet.create({
     height: 55,
     marginBottom: 20,
   },
-  input: { flex: 1, fontSize: 16, outlineStyle: "none" as any }, // Qora chiziq olib tashlandi
+  input: { flex: 1, fontSize: 16, outlineStyle: "none" as any },
   previewCard: {
     backgroundColor: "#F0FDF4",
     padding: 16,
