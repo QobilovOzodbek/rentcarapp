@@ -4,11 +4,10 @@ import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Notifications from "expo-notifications";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, createElement } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,7 +19,7 @@ import {
 } from "react-native";
 import { supabase } from "../lib/supabase";
 
-// 🌐 Bildirishnomalarni faqat telefonda ishlatamiz (Webda xato bermasligi uchun)
+// 🌐 Bildirishnomalarni faqat telefonda ishlatamiz
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -48,6 +47,10 @@ export default function RentCarScreen() {
   const [ijaraTuri, setIjaraTuri] = useState<"aniq_vaqt" | "kunlik">(
     soatlikNarx > 0 ? "aniq_vaqt" : "kunlik",
   );
+
+  // 🕒 YANGI: Boshlanish vaqti
+  const [boshlanishVaqti, setBoshlanishVaqti] = useState<Date>(new Date());
+  const [showStartPicker, setShowStartPicker] = useState(false);
 
   const [muddat, setMuddat] = useState("");
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -88,9 +91,10 @@ export default function RentCarScreen() {
     ruxsatSorash();
   }, []);
 
+  // 🧠 Hisob-kitoblar endi `boshlanishVaqti` asosida ishlaydi
   useEffect(() => {
     let summa = 0;
-    const sana = new Date();
+    const sana = new Date(boshlanishVaqti);
 
     if (ijaraTuri === "kunlik") {
       setTanlanganVaqt(null);
@@ -107,7 +111,7 @@ export default function RentCarScreen() {
     } else if (ijaraTuri === "aniq_vaqt") {
       setMuddat("");
       if (tanlanganVaqt) {
-        const kutilganVaqt = new Date();
+        const kutilganVaqt = new Date(boshlanishVaqti);
         kutilganVaqt.setHours(
           tanlanganVaqt.getHours(),
           tanlanganVaqt.getMinutes(),
@@ -128,7 +132,7 @@ export default function RentCarScreen() {
         setQaytishVaqti(null);
       }
     }
-  }, [muddat, tanlanganVaqt, ijaraTuri]);
+  }, [muddat, tanlanganVaqt, ijaraTuri, boshlanishVaqti]);
 
   const rasmTanlash = async (turi: "old" | "orqa") => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -198,6 +202,7 @@ export default function RentCarScreen() {
         mijoz_ism: mijozIsm.trim(),
         telefon_raqam: telefon.trim(),
         ijara_turi: ijaraTuri,
+        boshlanish_vaqti: boshlanishVaqti.toISOString(), // 🕒 Yozib qoyamiz
         kutilayotgan_vaqt: qaytishISO,
         tugash_vaqti: qaytishISO,
         asl_narx: Math.round(umumiySumma),
@@ -240,9 +245,8 @@ export default function RentCarScreen() {
       .toString()
       .replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " UZS";
 
-  // 🌐 Web uchun aniq HH:mm formatida soat qaytarish
   const getWebTimeValue = (d: Date | null) => {
-    if (!d) return "";
+    if (!d || isNaN(d.getTime())) return "";
     const h = d.getHours().toString().padStart(2, "0");
     const m = d.getMinutes().toString().padStart(2, "0");
     return `${h}:${m}`;
@@ -297,6 +301,95 @@ export default function RentCarScreen() {
           </View>
         </View>
 
+        {/* 🕒 Boshlanish vaqti bloki */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Berilgan vaqt (Hozirgi vaqt)</Text>
+          <Text style={styles.helpText}>
+            Mashina ertaroq berilgan bo'lsa, vaqtni o'zgartiring:
+          </Text>
+
+          {Platform.OS === "web" ? (
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="time"
+                size={20}
+                color="#2563EB"
+                style={styles.inputIcon}
+              />
+              {createElement("input", {
+                type: "time",
+                value: getWebTimeValue(boshlanishVaqti),
+                style: {
+                  flex: 1,
+                  border: "none",
+                  outline: "none",
+                  backgroundColor: "transparent",
+                  fontSize: 16,
+                  color: "#0F172A",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                },
+                onChange: (e: any) => {
+                  const val = e.target.value;
+                  if (val && val.includes(":")) {
+                    const [h, m] = val.split(":");
+                    if (h !== "" && m !== "") {
+                      const d = new Date(boshlanishVaqti);
+                      d.setHours(Number(h), Number(m), 0, 0);
+                      setBoshlanishVaqti(d);
+                    }
+                  }
+                },
+              })}
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.inputWrapper,
+                { borderColor: "#BFDBFE", backgroundColor: "#EFF6FF" },
+              ]}
+              onPress={() => setShowStartPicker(true)}
+            >
+              <Ionicons
+                name="time"
+                size={20}
+                color="#2563EB"
+                style={styles.inputIcon}
+              />
+              <Text
+                style={[
+                  styles.input,
+                  {
+                    lineHeight: Platform.OS === "ios" ? 0 : 50,
+                    color: "#1E3A8A",
+                    fontWeight: "bold",
+                  },
+                ]}
+              >
+                {boshlanishVaqti.toLocaleTimeString("uz-UZ", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {showStartPicker && Platform.OS !== "web" && (
+            <DateTimePicker
+              value={boshlanishVaqti}
+              mode="time"
+              is24Hour={true}
+              display="default"
+              onValueChange={(event, selectedDate) => {
+                if (Platform.OS === "android") setShowStartPicker(false);
+                if (selectedDate) setBoshlanishVaqti(selectedDate);
+              }}
+              onDismiss={() => setShowStartPicker(false)}
+            />
+          )}
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ijara shartlari</Text>
           <View style={styles.typeSelector}>
@@ -349,24 +442,33 @@ export default function RentCarScreen() {
                   color="#64748B"
                   style={styles.inputIcon}
                 />
-                <TextInput
-                  style={[
-                    styles.input,
-                    { color: tanlanganVaqt ? "#0F172A" : "#94A3B8" },
-                  ]}
-                  {...({ type: "time" } as any)}
-                  value={getWebTimeValue(tanlanganVaqt)}
-                  onChangeText={(val) => {
-                    if (val) {
+                {createElement("input", {
+                  type: "time",
+                  value: getWebTimeValue(tanlanganVaqt),
+                  style: {
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
+                    backgroundColor: "transparent",
+                    fontSize: 16,
+                    color: tanlanganVaqt ? "#0F172A" : "#94A3B8",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                  },
+                  onChange: (e: any) => {
+                    const val = e.target.value;
+                    if (val && val.includes(":")) {
                       const [h, m] = val.split(":");
-                      const d = new Date();
-                      d.setHours(Number(h), Number(m), 0, 0);
-                      setTanlanganVaqt(d);
-                    } else {
+                      if (h !== "" && m !== "") {
+                        const d = new Date(boshlanishVaqti);
+                        d.setHours(Number(h), Number(m), 0, 0);
+                        setTanlanganVaqt(d);
+                      }
+                    } else if (!val) {
                       setTanlanganVaqt(null);
                     }
-                  }}
-                />
+                  },
+                })}
               </View>
             ) : (
               <TouchableOpacity
@@ -532,8 +634,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#0F172A",
-    marginBottom: 16,
+    marginBottom: 10,
   },
+  helpText: { fontSize: 13, color: "#64748B", marginBottom: 12, marginTop: -6 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
