@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  Image,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "expo-router";
@@ -61,12 +62,13 @@ export default function LoginScreen() {
         >
           <View style={styles.header}>
             <View style={styles.logoBox}>
-              <Ionicons name="car-sport" size={50} color="#FFFFFF" />
+              {/* Haqiqiy logotipingizni ulash */}
+              <Image 
+                source={require('../../assets/images/icon.png')} 
+                style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+              />
             </View>
             <Text style={styles.title}>Rentcar house</Text>
-            <Text style={styles.subtitle}>
-              Tizimga kirish uchun ma'lumotlaringizni kiriting
-            </Text>
           </View>
 
           <View style={styles.form}>
