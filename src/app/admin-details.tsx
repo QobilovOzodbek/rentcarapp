@@ -71,7 +71,6 @@ export default function AdminDetailsScreen() {
     }
   };
 
-  // 🔑 Xodimga parolni tiklash xatini yuborish
   const parolniTiklashniYuborish = async () => {
     setResetLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(
@@ -87,20 +86,51 @@ export default function AdminDetailsScreen() {
       );
   };
 
+  // 🧠 AQLLI O'CHIRISH (Gibrid Delete)
   const adminniOchirish = () => {
     const ruxsat = async () => {
       setLoading(true);
-      const { error } = await supabase
-        .from("profiles")
-        .update({ role: "ochirilgan" })
-        .eq("id", params.id);
-      if (error) {
-        xabarChikarish("Xatolik", error.message);
-        setLoading(false);
-      } else {
+      try {
+        // 1. Tekshiramiz: Bu xodimda ijara tarixi bormi?
+        const { count, error: countError } = await supabase
+          .from("rentals")
+          .select("*", { count: "exact", head: true })
+          .eq("admin_id", params.id);
+
+        if (countError) throw countError;
+
+        if (count && count > 0) {
+          // Tarixi bor - SOFT DELETE (Faqat rolini o'zgartiramiz)
+          const { error } = await supabase
+            .from("profiles")
+            .update({ role: "ochirilgan" })
+            .eq("id", params.id);
+          if (error) throw error;
+          xabarChikarish(
+            "Tizimdan chetlatildi",
+            "Bu xodimning ijara tarixi bo'lgani uchun bazada tarix sifatida saqlandi, lekin tizimga boshqa kirolmaydi.",
+          );
+        } else {
+          // Tarixi yo'q - HARD DELETE (Bazadan butunlay o'chirib tashlaymiz)
+          const { error } = await supabase
+            .from("profiles")
+            .delete()
+            .eq("id", params.id);
+          if (error) throw error;
+          xabarChikarish(
+            "O'chirildi",
+            "Yangi xodim bazadan butunlay tozalandi.",
+          );
+        }
+
         router.dismissAll();
+      } catch (err: any) {
+        xabarChikarish("Xatolik", err.message);
+      } finally {
+        setLoading(false);
       }
     };
+
     if (Platform.OS === "web") {
       if (window.confirm(`${ism} tizimdan o'chirilsinmi?`)) ruxsat();
     } else {
@@ -131,7 +161,10 @@ export default function AdminDetailsScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => router.back()}
-              style={styles.backBtn}
+              style={[
+                styles.backBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
             >
               <Ionicons name="arrow-back" size={24} color="#0F172A" />
             </TouchableOpacity>
@@ -193,11 +226,18 @@ export default function AdminDetailsScreen() {
             </View>
 
             <TouchableOpacity
-              style={styles.submitBtn}
+              style={[
+                styles.submitBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
               onPress={malumotniYangilash}
               disabled={loading}
             >
-              <Text style={styles.submitBtnText}>Saqlash</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>Saqlash</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -209,7 +249,10 @@ export default function AdminDetailsScreen() {
               mumkin.
             </Text>
             <TouchableOpacity
-              style={styles.resetBtn}
+              style={[
+                styles.resetBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
               onPress={parolniTiklashniYuborish}
               disabled={resetLoading}
             >
@@ -226,11 +269,18 @@ export default function AdminDetailsScreen() {
           <View style={styles.dangerZone}>
             <Text style={styles.dangerTitle}>Xavfli hudud</Text>
             <TouchableOpacity
-              style={styles.deleteBtn}
+              style={[
+                styles.deleteBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
               onPress={adminniOchirish}
               disabled={loading}
             >
-              <Text style={styles.deleteBtnText}>Xodimni o'chirish</Text>
+              {loading ? (
+                <ActivityIndicator color="#DC2626" />
+              ) : (
+                <Text style={styles.deleteBtnText}>Xodimni o'chirish</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>

@@ -30,7 +30,6 @@ export default function HomeScreen() {
   const mashinalarniYuklash = async () => {
     setLoading(true);
     try {
-      // MIJOZ RAQAMI VA ASL NARX HAM CHAQRILMOQDA
       const { data, error } = await supabase
         .from("cars")
         .select(
@@ -100,7 +99,9 @@ export default function HomeScreen() {
     const { error } = await supabase.from("cars").delete().eq("id", id);
     if (!error) mashinalarniYuklash();
     else {
-      Alert.alert("Xatolik", error.message);
+      Platform.OS === "web"
+        ? window.alert(error.message)
+        : Alert.alert("Xatolik", error.message);
       setLoading(false);
     }
   };
@@ -261,7 +262,10 @@ export default function HomeScreen() {
                   <Text style={styles.renterText}>{faolIjara.mijoz_ism}</Text>
                 </View>
                 <TouchableOpacity
-                  style={styles.callBtn}
+                  style={[
+                    styles.callBtn,
+                    Platform.OS === "web" && ({ cursor: "pointer" } as any),
+                  ]}
                   onPress={() => qongiroqQilish(faolIjara.telefon_raqam)}
                 >
                   <Ionicons name="call" size={16} color="#059669" />
@@ -298,7 +302,10 @@ export default function HomeScreen() {
           {!isBusy ? (
             <View style={styles.actionIcons}>
               <TouchableOpacity
-                style={styles.iconBtn}
+                style={[
+                  styles.iconBtn,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
+                ]}
                 onPress={() =>
                   router.push({
                     pathname: "/edit-car",
@@ -315,7 +322,10 @@ export default function HomeScreen() {
                 <Ionicons name="pencil" size={18} color="#64748B" />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.iconBtn}
+                style={[
+                  styles.iconBtn,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
+                ]}
                 onPress={() =>
                   mashinaniOchirish(item.id, item.model, item.davlat_raqami)
                 }
@@ -323,7 +333,10 @@ export default function HomeScreen() {
                 <Ionicons name="trash" size={18} color="#EF4444" />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.iconBtn}
+                style={[
+                  styles.iconBtn,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
+                ]}
                 onPress={() => holatniOzgartirish(item.id, item.holati)}
               >
                 <Ionicons name="build-outline" size={18} color="#C2410C" />
@@ -336,7 +349,10 @@ export default function HomeScreen() {
           {isBusy ? (
             <View style={{ flexDirection: "row", gap: 10, flex: 1 }}>
               <TouchableOpacity
-                style={styles.extendBtn}
+                style={[
+                  styles.extendBtn,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
+                ]}
                 onPress={() =>
                   router.push({
                     pathname: "/extend-rental",
@@ -356,7 +372,10 @@ export default function HomeScreen() {
                 <Text style={styles.extendBtnText}>Uzaytirish</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.finishActionBtn}
+                style={[
+                  styles.finishActionBtn,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
+                ]}
                 onPress={() =>
                   router.push({
                     pathname: "/finish-rental",
@@ -375,7 +394,11 @@ export default function HomeScreen() {
             </View>
           ) : isTamirda ? (
             <TouchableOpacity
-              style={[styles.primaryActionBtn, { backgroundColor: "#C2410C" }]}
+              style={[
+                styles.primaryActionBtn,
+                { backgroundColor: "#C2410C" },
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
               onPress={() => holatniOzgartirish(item.id, item.holati)}
             >
               <Text style={styles.primaryActionText}>Tamirdan chiqarish</Text>
@@ -388,7 +411,10 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={styles.primaryActionBtn}
+              style={[
+                styles.primaryActionBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
               onPress={() =>
                 router.push({
                   pathname: "/rent-car",
@@ -419,7 +445,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Avtopark</Text>
+        <Text style={styles.headerTitle}>Rentcar house</Text>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#94A3B8" />
           <TextInput
@@ -430,7 +456,12 @@ export default function HomeScreen() {
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <TouchableOpacity
+              style={
+                Platform.OS === "web" ? ({ cursor: "pointer" } as any) : {}
+              }
+              onPress={() => setSearchQuery("")}
+            >
               <Ionicons name="close-circle" size={20} color="#94A3B8" />
             </TouchableOpacity>
           )}
@@ -475,6 +506,7 @@ export default function HomeScreen() {
             style={[
               styles.filterBtn,
               filter === "barchasi" && styles.filterBtnActive,
+              Platform.OS === "web" && ({ cursor: "pointer" } as any),
             ]}
             onPress={() => setFilter("barchasi")}
           >
@@ -491,6 +523,7 @@ export default function HomeScreen() {
             style={[
               styles.filterBtn,
               filter === "bosh" && styles.filterBtnActive,
+              Platform.OS === "web" && ({ cursor: "pointer" } as any),
             ]}
             onPress={() => setFilter("bosh")}
           >
@@ -507,6 +540,7 @@ export default function HomeScreen() {
             style={[
               styles.filterBtn,
               filter === "band" && styles.filterBtnActive,
+              Platform.OS === "web" && ({ cursor: "pointer" } as any),
             ]}
             onPress={() => setFilter("band")}
           >
@@ -523,6 +557,7 @@ export default function HomeScreen() {
             style={[
               styles.filterBtn,
               filter === "tamirda" && styles.filterBtnActive,
+              Platform.OS === "web" && ({ cursor: "pointer" } as any),
             ]}
             onPress={() => setFilter("tamirda")}
           >
@@ -565,7 +600,10 @@ export default function HomeScreen() {
         />
       )}
       <TouchableOpacity
-        style={styles.fab}
+        style={[
+          styles.fab,
+          Platform.OS === "web" && ({ cursor: "pointer" } as any),
+        ]}
         onPress={() => router.push("/add-car")}
       >
         <Ionicons name="add" size={32} color="#FFF" />

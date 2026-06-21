@@ -5,15 +5,16 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
+  Alert,
   Platform,
+  KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { supabase } from "../lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
+import { supabase } from "../lib/supabase";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AddCarScreen() {
   const [model, setModel] = useState("");
@@ -24,44 +25,33 @@ export default function AddCarScreen() {
   const router = useRouter();
 
   const xabarChikarish = (sarlovha: string, matn: string) => {
-    if (Platform.OS === "web") window.alert(`${sarlovha}: ${matn}`);
-    else Alert.alert(sarlovha, matn);
+    Platform.OS === "web"
+      ? window.alert(`${sarlovha}: ${matn}`)
+      : Alert.alert(sarlovha, matn);
   };
 
-  const mashinaSaqlash = async () => {
-    // 1. Asosiy maydonlarni tekshirish
+  const mashinaQoshish = async () => {
     if (!model.trim() || !davlatRaqami.trim()) {
-      xabarChikarish("Diqqat!", "Model va davlat raqamini kiritish majburiy.");
+      xabarChikarish("Diqqat", "Model va Davlat raqamini kiritish majburiy!");
       return;
     }
 
-    // 2. Narxlardan kamida bittasi kiritilganligini tekshirish
     if (!soatlikNarx.trim() && !kunlikNarx.trim()) {
       xabarChikarish(
-        "Diqqat!",
-        "Kamida bitta narx turini (soatlik yoki kunlik) kiriting.",
+        "Diqqat",
+        "Kamida soatlik yoki kunlik narxni kiritishingiz kerak!",
       );
       return;
     }
 
     setLoading(true);
 
-    const tozaRaqam = davlatRaqami.replace(/\s+/g, "").toUpperCase();
-
-    // Agar bo'sh bo'lsa 0 deb oladi, raqam bo'lsa o'qib oladi
-    const tozaSoatlik = soatlikNarx.trim()
-      ? parseFloat(soatlikNarx.replace(/[^0-9.]/g, ""))
-      : 0;
-    const tozaKunlik = kunlikNarx.trim()
-      ? parseFloat(kunlikNarx.replace(/[^0-9.]/g, ""))
-      : 0;
-
     const { error } = await supabase.from("cars").insert([
       {
         model: model.trim(),
-        davlat_raqami: tozaRaqam,
-        soatlik_narx: tozaSoatlik,
-        kunlik_narx: tozaKunlik,
+        davlat_raqami: davlatRaqami.trim().toUpperCase(),
+        soatlik_narx: soatlikNarx ? Number(soatlikNarx) : 0,
+        kunlik_narx: kunlikNarx ? Number(kunlikNarx) : 0,
         holati: "bo'sh",
       },
     ]);
@@ -69,216 +59,180 @@ export default function AddCarScreen() {
     setLoading(false);
 
     if (error) {
-      if (error.code === "23505") {
-        const msg =
-          "Bunday mashina bor! Bu davlat raqami allaqachon ro'yxatga olingan.";
-        Platform.OS === "web" ? window.alert(msg) : Alert.alert("Xatolik", msg);
-      } else {
-        xabarChikarish("Tizim xatoligi", error.message);
-      }
-      return;
+      xabarChikarish("Xatolik", error.message);
+    } else {
+      router.back();
     }
-
-    router.back();
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="car-sport-outline" size={40} color="#2563EB" />
-          </View>
-          <Text style={styles.title}>Yangi Mashina</Text>
-          <Text style={styles.subtitle}>
-            Avtopark bazasiga yangi transport qo'shish
-          </Text>
-        </View>
-
-        <View style={styles.formCard}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Transport rusumi *</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="cube-outline"
-                size={20}
-                color="#64748B"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Chevrolet Malibu 2"
-                value={model}
-                onChangeText={setModel}
-              />
-            </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={[
+                styles.backBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
+            >
+              <Ionicons name="arrow-back" size={24} color="#0F172A" />
+            </TouchableOpacity>
+            <Text style={styles.title}>Yangi Mashina</Text>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Davlat raqami *</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="barcode-outline"
-                size={20}
-                color="#64748B"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="01 A 777 AA"
-                value={davlatRaqami}
-                onChangeText={setDavlatRaqami}
-                autoCapitalize="characters"
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Soatlik ijara narxi (Ixtiyoriy)</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="time-outline"
-                size={20}
-                color="#64748B"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="50 000"
-                value={soatlikNarx}
-                onChangeText={setSoatlikNarx}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Kunlik ijara narxi (Ixtiyoriy)</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="calendar-outline"
-                size={20}
-                color="#64748B"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="600 000"
-                value={kunlikNarx}
-                onChangeText={setKunlikNarx}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.primaryBtn, loading && styles.disabledBtn]}
-            onPress={mashinaSaqlash}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Mashina modeli *</Text>
+              <View style={styles.inputWrapper}>
                 <Ionicons
-                  name="checkmark-circle-outline"
-                  size={22}
-                  color="#fff"
-                  style={{ marginRight: 8 }}
+                  name="car-outline"
+                  size={20}
+                  color="#64748B"
+                  style={styles.icon}
                 />
-                <Text style={styles.primaryBtnText}>Saqlash</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            onPress={() => router.back()}
-            disabled={loading}
-          >
-            <Text style={styles.secondaryBtnText}>Bekor qilish</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Masalan: Chevrolet Malibu"
+                  value={model}
+                  onChangeText={setModel}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Davlat raqami *</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="pricetag-outline"
+                  size={20}
+                  color="#64748B"
+                  style={styles.icon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="01 A 111 AA"
+                  value={davlatRaqami}
+                  onChangeText={setDavlatRaqami}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Soatlik narxi (UZS)</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color="#64748B"
+                  style={styles.icon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Masalan: 50000"
+                  value={soatlikNarx}
+                  onChangeText={setSoatlikNarx}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Kunlik narxi (UZS)</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color="#64748B"
+                  style={styles.icon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Masalan: 400000"
+                  value={kunlikNarx}
+                  onChangeText={setKunlikNarx}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.submitBtn,
+                loading && styles.disabledBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
+              onPress={mashinaQoshish}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>Mashinani Saqlash</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-  scrollContent: { flexGrow: 1, padding: 20, paddingBottom: 40 },
-  header: { alignItems: "center", marginTop: 20, marginBottom: 25 },
-  iconContainer: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: "#DBEAFE",
+  scrollContent: { padding: 20 },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
   },
-  title: { fontSize: 26, fontWeight: "800", color: "#0F172A", marginBottom: 5 },
-  subtitle: { fontSize: 14, color: "#64748B", textAlign: "center" },
-  formCard: {
+  title: { fontSize: 24, fontWeight: "800", color: "#0F172A", marginLeft: 16 },
+  form: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
     padding: 20,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    marginBottom: 25,
   },
   inputGroup: { marginBottom: 16 },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 6,
-    marginLeft: 4,
-  },
+  label: { fontSize: 14, fontWeight: "600", color: "#334155", marginBottom: 8 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#CBD5E1",
     borderRadius: 12,
-    paddingHorizontal: 15,
-    height: 52,
+    paddingHorizontal: 12,
+    height: 50,
   },
-  inputIcon: { marginRight: 10 },
+  icon: { marginRight: 10 },
   input: {
     flex: 1,
     fontSize: 16,
     color: "#0F172A",
-    height: "100%",
     outlineStyle: "none" as any,
   },
-  actionButtons: { gap: 12 },
-  primaryBtn: {
+  submitBtn: {
     backgroundColor: "#2563EB",
     height: 54,
-    borderRadius: 14,
-    flexDirection: "row",
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 10,
   },
   disabledBtn: { backgroundColor: "#93C5FD" },
-  primaryBtnText: { color: "#FFFFFF", fontSize: 17, fontWeight: "700" },
-  secondaryBtn: {
-    backgroundColor: "transparent",
-    height: 54,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-  },
-  secondaryBtnText: { color: "#475569", fontSize: 15, fontWeight: "600" },
+  submitBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 16 },
 });

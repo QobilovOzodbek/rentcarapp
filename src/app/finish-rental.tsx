@@ -2,16 +2,17 @@ import { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
-  Alert,
+  TouchableOpacity,
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { supabase } from "../lib/supabase";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { supabase } from "../lib/supabase";
 
 export default function FinishRentalScreen() {
   const router = useRouter();
@@ -19,13 +20,10 @@ export default function FinishRentalScreen() {
   const rentalId = params.rental_id as string;
   const carId = params.car_id as string;
 
-  const [rental, setRental] = useState<any>(null);
-  const [car, setCar] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [finishing, setFinishing] = useState(false);
-
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [rentalData, setRentalData] = useState<any>(null);
   const [jarima, setJarima] = useState(0);
-  const [kechikkanSoat, setKechikkanSoat] = useState(0);
 
   const xabarChikarish = (sarlovha: string, matn: string) => {
     Platform.OS === "web"
@@ -34,319 +32,257 @@ export default function FinishRentalScreen() {
   };
 
   useEffect(() => {
-    const maLumotYuklash = async () => {
-      // 1. Ijara va mashina ma'lumotlarini olish
-      const { data: rentalData } = await supabase
-        .from("rentals")
-        .select("*")
-        .eq("id", rentalId)
-        .single();
-      const { data: carData } = await supabase
-        .from("cars")
-        .select("*")
-        .eq("id", carId)
-        .single();
+    const ijaraniYuklash = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("rentals")
+          .select("*, cars(soatlik_narx, kunlik_narx, model, davlat_raqami)")
+          .eq("id", rentalId)
+          .single();
+        if (error) throw error;
 
-      if (rentalData && carData) {
-        setRental(rentalData);
-        setCar(carData);
-        hisobKitob(
-          rentalData.kutilayotgan_vaqt,
-          carData.soatlik_narx,
-          carData.kunlik_narx,
-        );
+        setRentalData(data);
+
+        // Jarimani hisoblash (Agar vaqtidan o'tib ketgan bo'lsa)
+        const hozir = new Date();
+        const kutilganVaqt = new Date(data.kutilayotgan_vaqt);
+
+        if (hozir > kutilganVaqt) {
+          const kechikkanSoat = Math.ceil(
+            (hozir.getTime() - kutilganVaqt.getTime()) / (1000 * 60 * 60),
+          );
+          const soatlik =
+            data.cars?.soatlik_narx > 0
+              ? data.cars.soatlik_narx
+              : data.cars?.kunlik_narx / 24;
+          setJarima(Math.round(kechikkanSoat * soatlik));
+        }
+      } catch (err: any) {
+        xabarChikarish("Xatolik", err.message);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
+    ijaraniYuklash();
+  }, [rentalId]);
 
-    maLumotYuklash();
-  }, []);
-
-  const hisobKitob = (kutilgan: string, soatlik: number, kunlik: number) => {
-    const hozir = new Date();
-    const kutilganVaqt = new Date(kutilgan);
-
-    // Farqni millisoniyada topish
-    const farqMs = hozir.getTime() - kutilganVaqt.getTime();
-
-    if (farqMs > 0) {
-      // Agar vaqtdan o'tib ketgan bo'lsa (Kechikkan)
-      const soatlar = Math.ceil(farqMs / (1000 * 60 * 60)); // Yaxlitlangan soat
-      setKechikkanSoat(soatlar);
-
-      // Agar soatlik narx kiritilmagan bo'lsa, kunlik narxni 24 ga bo'lib hisoblaymiz
-      const jarimaStavka = soatlik > 0 ? soatlik : kunlik / 24;
-      setJarima(soatlar * jarimaStavka);
-    } else {
-      setKechikkanSoat(0);
-      setJarima(0);
-    }
-  };
-
-  const ijaraniTugatish = async () => {
-    setFinishing(true);
-    const hozirgiVaqt = new Date().toISOString();
-    const yakuniySumma = rental.asl_narx + jarima;
-
+  const ijaraniYakunlash = async () => {
+    setSubmitLoading(true);
     try {
-      // 1. Ijarani yakunlash (rentals jadvalini yangilash)
-      const { error: rentErr } = await supabase
+      // 1. Ijarani yopamiz
+      const { error: rentalError } = await supabase
         .from("rentals")
         .update({
           status: "yakunlangan",
-          qaytarilgan_vaqt: hozirgiVaqt,
-          jarima_narxi: jarima,
-          umumiy_summa: yakuniySumma,
+          tugash_vaqti: new Date().toISOString(),
+          jarima_summa: jarima,
+          umumiy_summa: rentalData.asl_narx + jarima,
         })
         .eq("id", rentalId);
 
-      if (rentErr) throw rentErr;
+      if (rentalError) throw rentalError;
 
-      // 2. Mashinani bo'shatish (cars jadvalini yangilash)
-      const { error: carErr } = await supabase
+      // 2. Mashinani bo'shatamiz
+      const { error: carError } = await supabase
         .from("cars")
         .update({ holati: "bo'sh" })
         .eq("id", carId);
+      if (carError) throw carError;
 
-      if (carErr) throw carErr;
-
-      // Hammasi joyida
       router.back();
     } catch (err: any) {
       xabarChikarish("Xatolik", err.message);
     } finally {
-      setFinishing(false);
+      setSubmitLoading(false);
     }
   };
 
-  const vaqtniFormatlash = (sana: string) => {
-    if (!sana) return "";
-    return new Date(sana).toLocaleString("uz-UZ", {
+  const vaqtniFormatlash = (dateString: string) =>
+    new Date(dateString).toLocaleString("uz-UZ", {
       day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+      month: "long",
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  const formatPrice = (price: number) => {
-    return (
-      Math.round(price)
-        .toString()
-        .replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " UZS"
-    );
-  };
+  const formatPrice = (price: number) =>
+    price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " UZS";
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#EF4444" />
-      </View>
+      <SafeAreaView style={[styles.container, styles.centerContainer]}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-    >
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="stop-circle-outline" size={40} color="#EF4444" />
-        </View>
-        <Text style={styles.title}>Ijarani Yakunlash</Text>
-        <Text style={styles.subtitle}>
-          Mashinani qabul qilib olish va to'lovni yakunlash
-        </Text>
-      </View>
-
-      {/* Mijoz va Avto ma'lumotlari */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>Ijara ma'lumotlari</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Mijoz:</Text>
-          <Text style={styles.infoValue}>{rental?.mijoz_ism}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Avtomobil:</Text>
-          <Text style={styles.infoValue}>
-            {car?.model} ({car?.davlat_raqami})
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Belgilangan vaqt:</Text>
-          <Text style={[styles.infoValue, { color: "#059669" }]}>
-            {vaqtniFormatlash(rental?.kutilayotgan_vaqt)}
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Hozirgi vaqt:</Text>
-          <Text
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
             style={[
-              styles.infoValue,
-              { color: kechikkanSoat > 0 ? "#DC2626" : "#2563EB" },
+              styles.backBtn,
+              Platform.OS === "web" && ({ cursor: "pointer" } as any),
             ]}
           >
-            {vaqtniFormatlash(new Date().toISOString())}
+            <Ionicons name="arrow-back" size={24} color="#0F172A" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Ijarani Yakunlash</Text>
+        </View>
+
+        <View style={styles.infoCard}>
+          <Text style={styles.carName}>{rentalData?.cars?.model}</Text>
+          <Text style={styles.plateNumber}>
+            {rentalData?.cars?.davlat_raqami}
           </Text>
-        </View>
-      </View>
-
-      {/* Hisob-kitob (Kalkulyator) */}
-      <View style={styles.calcCard}>
-        <View style={styles.calcRow}>
-          <Text style={styles.calcLabel}>Ijara narxi (Asl):</Text>
-          <Text style={styles.calcValue}>{formatPrice(rental?.asl_narx)}</Text>
-        </View>
-
-        {kechikkanSoat > 0 && (
-          <View style={styles.calcRowPenalty}>
-            <Text style={styles.calcPenaltyLabel}>
-              <Ionicons name="warning-outline" size={16} /> Kechikish (
-              {kechikkanSoat} soat):
-            </Text>
-            <Text style={styles.calcPenaltyValue}>+ {formatPrice(jarima)}</Text>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.label}>Mijoz:</Text>
+            <Text style={styles.value}>{rentalData?.mijoz_ism}</Text>
           </View>
-        )}
-
-        <View style={styles.divider} />
-
-        <View style={styles.calcRow}>
-          <Text style={styles.calcTotalLabel}>Yakuniy To'lov:</Text>
-          <Text style={styles.calcTotalValue}>
-            {formatPrice(rental?.asl_narx + jarima)}
-          </Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Kutilgan qaytish:</Text>
+            <Text style={styles.value}>
+              {vaqtniFormatlash(rentalData?.kutilayotgan_vaqt)}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {/* Tugmalar */}
-      <View style={styles.actionButtons}>
+        <View style={styles.receiptCard}>
+          <Text style={styles.receiptTitle}>To'lov hisoboti</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Asosiy to'lov:</Text>
+            <Text style={styles.value}>
+              {formatPrice(rentalData?.asl_narx)}
+            </Text>
+          </View>
+
+          {jarima > 0 && (
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: "#DC2626" }]}>
+                Kechikkanlik jarimasi:
+              </Text>
+              <Text style={[styles.value, { color: "#DC2626" }]}>
+                +{formatPrice(jarima)}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.divider, { backgroundColor: "#CBD5E1" }]} />
+
+          <View style={styles.row}>
+            <Text style={styles.totalLabel}>Jami Summa:</Text>
+            <Text style={styles.totalValue}>
+              {formatPrice(rentalData?.asl_narx + jarima)}
+            </Text>
+          </View>
+        </View>
+
         <TouchableOpacity
-          style={[styles.primaryBtn, finishing && styles.disabledBtn]}
-          onPress={ijaraniTugatish}
-          disabled={finishing}
+          style={[
+            styles.finishBtn,
+            submitLoading && styles.disabledBtn,
+            Platform.OS === "web" && ({ cursor: "pointer" } as any),
+          ]}
+          onPress={ijaraniYakunlash}
+          disabled={submitLoading}
         >
-          {finishing ? (
-            <ActivityIndicator color="#fff" />
+          {submitLoading ? (
+            <ActivityIndicator color="#FFF" />
           ) : (
             <>
               <Ionicons
-                name="checkmark-done-circle-outline"
+                name="checkmark-circle"
                 size={22}
-                color="#fff"
+                color="#FFF"
                 style={{ marginRight: 8 }}
               />
-              <Text style={styles.primaryBtnText}>To'lovni tasdiqlash</Text>
+              <Text style={styles.finishBtnText}>Mashinani Qabul Qilish</Text>
             </>
           )}
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => router.back()}
-          disabled={finishing}
-        >
-          <Text style={styles.secondaryBtnText}>Ortga qaytish</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-
-  header: { alignItems: "center", marginTop: 20, marginBottom: 25 },
-  iconContainer: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: "#FEE2E2",
+  centerContainer: { justifyContent: "center", alignItems: "center" },
+  scrollContent: { padding: 20 },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  title: { fontSize: 26, fontWeight: "800", color: "#0F172A", marginBottom: 5 },
-  subtitle: { fontSize: 14, color: "#64748B", textAlign: "center" },
-
+  title: { fontSize: 24, fontWeight: "800", color: "#0F172A", marginLeft: 16 },
   infoCard: {
     backgroundColor: "#FFFFFF",
+    padding: 20,
     borderRadius: 16,
-    padding: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     marginBottom: 20,
   },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+  carName: {
+    fontSize: 20,
+    fontWeight: "800",
     color: "#0F172A",
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderColor: "#F1F5F9",
-    paddingBottom: 8,
+    textAlign: "center",
   },
-  infoRow: {
+  plateNumber: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 4,
+    fontWeight: "600",
+  },
+  divider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 16 },
+  row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    alignItems: "center",
+    marginBottom: 12,
   },
-  infoLabel: { fontSize: 14, color: "#64748B", fontWeight: "500" },
-  infoValue: { fontSize: 14, color: "#0F172A", fontWeight: "700" },
-
-  calcCard: {
-    backgroundColor: "#F8FAFC",
+  label: { fontSize: 14, color: "#64748B", fontWeight: "500" },
+  value: { fontSize: 15, color: "#0F172A", fontWeight: "700" },
+  receiptCard: {
+    backgroundColor: "#F0FDF4",
+    padding: 20,
     borderRadius: 16,
-    padding: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#BBF7D0",
     marginBottom: 30,
   },
-  calcRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
+  receiptTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#166534",
+    marginBottom: 16,
   },
-  calcLabel: { fontSize: 15, color: "#334155", fontWeight: "600" },
-  calcValue: { fontSize: 16, color: "#0F172A", fontWeight: "700" },
-
-  calcRowPenalty: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#FEF2F2",
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  calcPenaltyLabel: { fontSize: 14, color: "#B91C1C", fontWeight: "600" },
-  calcPenaltyValue: { fontSize: 15, color: "#DC2626", fontWeight: "700" },
-
-  divider: { height: 1, backgroundColor: "#CBD5E1", marginVertical: 12 },
-  calcTotalLabel: { fontSize: 18, color: "#0F172A", fontWeight: "800" },
-  calcTotalValue: { fontSize: 24, color: "#2563EB", fontWeight: "900" },
-
-  actionButtons: { gap: 12 },
-  primaryBtn: {
-    backgroundColor: "#EF4444",
-    height: 54,
+  totalLabel: { fontSize: 18, color: "#166534", fontWeight: "800" },
+  totalValue: { fontSize: 22, color: "#15803D", fontWeight: "900" },
+  finishBtn: {
+    backgroundColor: "#10B981",
+    height: 56,
     borderRadius: 14,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
   },
-  disabledBtn: { backgroundColor: "#FCA5A5" },
-  primaryBtnText: { color: "#FFFFFF", fontSize: 17, fontWeight: "700" },
-  secondaryBtn: {
-    backgroundColor: "transparent",
-    height: 54,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-  },
-  secondaryBtnText: { color: "#475569", fontSize: 15, fontWeight: "600" },
+  disabledBtn: { backgroundColor: "#6EE7B7" },
+  finishBtnText: { color: "#FFFFFF", fontWeight: "800", fontSize: 17 },
 });

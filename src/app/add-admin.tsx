@@ -58,7 +58,7 @@ export default function AddAdminScreen() {
 
       if (authError) throw authError;
 
-      // 3. DARHOL Super Admin profiliga qaytamiz (Yangi foydalanuvchiga o'tib qolishni oldini oladi)
+      // 3. DARHOL Super Admin profiliga qaytamiz
       if (session) {
         await supabase.auth.setSession({
           access_token: session.access_token,
@@ -100,7 +100,10 @@ export default function AddAdminScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => router.back()}
-              style={styles.backBtn}
+              style={[
+                styles.backBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
             >
               <Ionicons name="arrow-back" size={24} color="#0F172A" />
             </TouchableOpacity>
@@ -166,7 +169,11 @@ export default function AddAdminScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.submitBtn, loading && styles.disabledBtn]}
+              style={[
+                styles.submitBtn,
+                loading && styles.disabledBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
               onPress={adminQoshish}
               disabled={loading}
             >

@@ -27,7 +27,6 @@ export default function ExtendRentalScreen() {
   const aslSoatlik = Number(params.soatlik) || 0;
   const aslKunlik = Number(params.kunlik) || 0;
 
-  // 🔥 MAGIC: Agar soatlik narxi kiritilmagan bo'lsa, uni kunlikdan avtomat hisoblaymiz!
   const soatlik = aslSoatlik > 0 ? aslSoatlik : aslKunlik / 24;
   const kunlik = aslKunlik > 0 ? aslKunlik : aslSoatlik * 24;
 
@@ -36,8 +35,6 @@ export default function ExtendRentalScreen() {
   const [loading, setLoading] = useState(false);
 
   const qoshimchaMiqdor = Number(qoshimcha) || 0;
-
-  // Haqiqiy vaqt hisob-kitobi
   const yangiVaqt = new Date(joriyVaqt);
   let qoshimchaSumma = 0;
 
@@ -97,7 +94,10 @@ export default function ExtendRentalScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => router.back()}
-              style={styles.backBtn}
+              style={[
+                styles.backBtn,
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
             >
               <Ionicons name="arrow-back" size={24} color="#0F172A" />
             </TouchableOpacity>
@@ -117,11 +117,11 @@ export default function ExtendRentalScreen() {
 
             <Text style={styles.label}>Nimaga qarab uzaytiramiz?</Text>
             <View style={styles.typeSelector}>
-              {/* Ikkala tugma ham doim chiqib turadi */}
               <TouchableOpacity
                 style={[
                   styles.typeBtn,
                   turi === "soat" && styles.typeBtnActive,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
                 ]}
                 onPress={() => setTuri("soat")}
               >
@@ -135,7 +135,11 @@ export default function ExtendRentalScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.typeBtn, turi === "kun" && styles.typeBtnActive]}
+                style={[
+                  styles.typeBtn,
+                  turi === "kun" && styles.typeBtnActive,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
+                ]}
                 onPress={() => setTuri("kun")}
               >
                 <Text
@@ -196,7 +200,11 @@ export default function ExtendRentalScreen() {
             )}
 
             <TouchableOpacity
-              style={[styles.saveBtn, loading && { opacity: 0.7 }]}
+              style={[
+                styles.saveBtn,
+                loading && { opacity: 0.7 },
+                Platform.OS === "web" && ({ cursor: "pointer" } as any),
+              ]}
               onPress={saqlash}
               disabled={loading}
             >
@@ -279,7 +287,7 @@ const styles = StyleSheet.create({
     height: 55,
     marginBottom: 20,
   },
-  input: { flex: 1, fontSize: 16, outlineStyle: "none" as any },
+  input: { flex: 1, fontSize: 16, outlineStyle: "none" as any }, // Qora chiziq olib tashlandi
   previewCard: {
     backgroundColor: "#F0FDF4",
     padding: 16,

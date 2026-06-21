@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { decode } from "base64-arraybuffer";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Notifications from "expo-notifications";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -18,17 +19,19 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../lib/supabase";
-import * as Notifications from "expo-notifications";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// 🌐 Bildirishnomalarni faqat telefonda ishlatamiz (Webda xato bermasligi uchun)
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export default function RentCarScreen() {
   const router = useRouter();
@@ -64,7 +67,27 @@ export default function RentCarScreen() {
       : Alert.alert(sarlovha, matn);
   };
 
-  // ⏱ KALKULYATOR MANTIQI
+  useEffect(() => {
+    const ruxsatSorash = async () => {
+      if (Platform.OS !== "web") {
+        const { status: existingStatus } =
+          await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== "granted") {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== "granted") {
+          Alert.alert(
+            "Ruxsat kerak!",
+            "Ijara vaqti tugagani haqida xabar kelishi uchun ilovaga bildirishnomalar ruxsatini berishingiz kerak.",
+          );
+        }
+      }
+    };
+    ruxsatSorash();
+  }, []);
+
   useEffect(() => {
     let summa = 0;
     const sana = new Date();
@@ -191,7 +214,6 @@ export default function RentCarScreen() {
         .eq("id", params.id);
       if (carError) throw carError;
 
-      // 🔔 Bildirishnomani faollashtirish!
       if (qaytishVaqti && Platform.OS !== "web") {
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -204,6 +226,7 @@ export default function RentCarScreen() {
           } as Notifications.NotificationTriggerInput,
         });
       }
+
       router.back();
     } catch (err: any) {
       xabarChikarish("Xatolik", err.message);
@@ -212,18 +235,18 @@ export default function RentCarScreen() {
     }
   };
 
-  const vaqtniFormatlash = (date: Date) =>
-    date.toLocaleString("uz-UZ", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   const formatPrice = (price: number) =>
     Math.round(price)
       .toString()
       .replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " UZS";
+
+  // 🌐 Web uchun aniq HH:mm formatida soat qaytarish
+  const getWebTimeValue = (d: Date | null) => {
+    if (!d) return "";
+    const h = d.getHours().toString().padStart(2, "0");
+    const m = d.getMinutes().toString().padStart(2, "0");
+    return `${h}:${m}`;
+  };
 
   return (
     <KeyboardAvoidingView
@@ -275,56 +298,14 @@ export default function RentCarScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hujjat rasmlari (Ixtiyoriy)</Text>
-          <View style={styles.docsContainer}>
-            <TouchableOpacity
-              style={styles.docUploadBtn}
-              onPress={() => rasmTanlash("old")}
-            >
-              {pasportOld ? (
-                <Image
-                  source={{ uri: pasportOld.uri }}
-                  style={styles.docImage}
-                />
-              ) : (
-                <>
-                  <Ionicons name="id-card-outline" size={28} color="#94A3B8" />
-                  <Text style={styles.docText}>Pasport (Old)</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.docUploadBtn}
-              onPress={() => rasmTanlash("orqa")}
-            >
-              {pasportOrqa ? (
-                <Image
-                  source={{ uri: pasportOrqa.uri }}
-                  style={styles.docImage}
-                />
-              ) : (
-                <>
-                  <Ionicons
-                    name="documents-outline"
-                    size={28}
-                    color="#94A3B8"
-                  />
-                  <Text style={styles.docText}>Pasport (Orqa)</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ijara shartlari</Text>
-
           <View style={styles.typeSelector}>
             {soatlikNarx > 0 && (
               <TouchableOpacity
                 style={[
                   styles.typeBtn,
                   ijaraTuri === "aniq_vaqt" && styles.typeBtnActive,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
                 ]}
                 onPress={() => setIjaraTuri("aniq_vaqt")}
               >
@@ -343,6 +324,7 @@ export default function RentCarScreen() {
                 style={[
                   styles.typeBtn,
                   ijaraTuri === "kunlik" && styles.typeBtnActive,
+                  Platform.OS === "web" && ({ cursor: "pointer" } as any),
                 ]}
                 onPress={() => setIjaraTuri("kunlik")}
               >
@@ -359,33 +341,62 @@ export default function RentCarScreen() {
           </View>
 
           {ijaraTuri === "aniq_vaqt" ? (
-            <TouchableOpacity
-              style={styles.inputWrapper}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Ionicons
-                name="time-outline"
-                size={20}
-                color="#64748B"
-                style={styles.inputIcon}
-              />
-              <Text
-                style={[
-                  styles.input,
-                  {
-                    lineHeight: Platform.OS === "ios" ? 0 : 50,
-                    color: tanlanganVaqt ? "#0F172A" : "#94A3B8",
-                  },
-                ]}
+            Platform.OS === "web" ? (
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color="#64748B"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[
+                    styles.input,
+                    { color: tanlanganVaqt ? "#0F172A" : "#94A3B8" },
+                  ]}
+                  {...({ type: "time" } as any)}
+                  value={getWebTimeValue(tanlanganVaqt)}
+                  onChangeText={(val) => {
+                    if (val) {
+                      const [h, m] = val.split(":");
+                      const d = new Date();
+                      d.setHours(Number(h), Number(m), 0, 0);
+                      setTanlanganVaqt(d);
+                    } else {
+                      setTanlanganVaqt(null);
+                    }
+                  }}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.inputWrapper}
+                onPress={() => setShowTimePicker(true)}
               >
-                {tanlanganVaqt
-                  ? tanlanganVaqt.toLocaleTimeString("uz-UZ", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "Qachongacha? (Soatni tanlang) *"}
-              </Text>
-            </TouchableOpacity>
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color="#64748B"
+                  style={styles.inputIcon}
+                />
+                <Text
+                  style={[
+                    styles.input,
+                    {
+                      lineHeight: Platform.OS === "ios" ? 0 : 50,
+                      color: tanlanganVaqt ? "#0F172A" : "#94A3B8",
+                    },
+                  ]}
+                >
+                  {tanlanganVaqt
+                    ? tanlanganVaqt.toLocaleTimeString("uz-UZ", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Qachongacha? (Soatni tanlang) *"}
+                </Text>
+              </TouchableOpacity>
+            )
           ) : (
             <View style={styles.inputWrapper}>
               <Ionicons
@@ -404,17 +415,14 @@ export default function RentCarScreen() {
             </View>
           )}
 
-          {/* 🔥 SARIQ XATOLIK TUZATILGAN JOYI: onChange o'rniga onValueChange va onDismiss ishlatildi */}
-          {showTimePicker && (
+          {showTimePicker && Platform.OS !== "web" && (
             <DateTimePicker
               value={tanlanganVaqt || new Date()}
               mode="time"
               is24Hour={true}
               display="default"
               onValueChange={(event, selectedDate) => {
-                if (Platform.OS === "android") {
-                  setShowTimePicker(false);
-                }
+                if (Platform.OS === "android") setShowTimePicker(false);
                 if (selectedDate) setTanlanganVaqt(selectedDate);
               }}
               onDismiss={() => setShowTimePicker(false)}
@@ -426,7 +434,15 @@ export default function RentCarScreen() {
           <View style={styles.calcRow}>
             <Text style={styles.calcLabel}>Qaytarish vaqti:</Text>
             <Text style={styles.calcValue}>
-              {qaytishVaqti ? vaqtniFormatlash(qaytishVaqti) : "Belgilanmagan"}
+              {qaytishVaqti
+                ? qaytishVaqti.toLocaleString("uz-UZ", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "Belgilanmagan"}
             </Text>
           </View>
           <View style={styles.divider} />
@@ -440,7 +456,11 @@ export default function RentCarScreen() {
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.primaryBtn, loading && styles.disabledBtn]}
+            style={[
+              styles.primaryBtn,
+              loading && styles.disabledBtn,
+              Platform.OS === "web" && ({ cursor: "pointer" } as any),
+            ]}
             onPress={ijaraniRasmiylashtirish}
             disabled={loading}
           >
@@ -459,7 +479,10 @@ export default function RentCarScreen() {
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.secondaryBtn}
+            style={[
+              styles.secondaryBtn,
+              Platform.OS === "web" && ({ cursor: "pointer" } as any),
+            ]}
             onPress={() => router.back()}
             disabled={loading}
           >
@@ -530,21 +553,6 @@ const styles = StyleSheet.create({
     height: "100%",
     outlineStyle: "none" as any,
   },
-  docsContainer: { flexDirection: "row", gap: 12 },
-  docUploadBtn: {
-    flex: 1,
-    height: 100,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#E2E8F0",
-    borderStyle: "dashed",
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-  docImage: { width: "100%", height: "100%", resizeMode: "cover" },
-  docText: { fontSize: 12, color: "#64748B", fontWeight: "600", marginTop: 6 },
   typeSelector: { flexDirection: "row", gap: 10, marginBottom: 16 },
   typeBtn: {
     flex: 1,
