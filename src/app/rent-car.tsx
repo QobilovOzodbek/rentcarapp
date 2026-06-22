@@ -48,9 +48,10 @@ export default function RentCarScreen() {
     soatlikNarx > 0 ? "aniq_vaqt" : "kunlik",
   );
 
-  // 🕒 YANGI: Boshlanish vaqti
+  // 🕒 Boshlanish vaqti (Sana va Soat birgalikda)
   const [boshlanishVaqti, setBoshlanishVaqti] = useState<Date>(new Date());
-  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
 
   const [muddat, setMuddat] = useState("");
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -91,7 +92,7 @@ export default function RentCarScreen() {
     ruxsatSorash();
   }, []);
 
-  // 🧠 Hisob-kitoblar endi `boshlanishVaqti` asosida ishlaydi
+  // 🧠 Hisob-kitoblar dinamik ravishda o'tmishdagi yoki hozirgi `boshlanishVaqti` asosida hisoblanadi
   useEffect(() => {
     let summa = 0;
     const sana = new Date(boshlanishVaqti);
@@ -119,6 +120,7 @@ export default function RentCarScreen() {
           0,
         );
 
+        // Agar tanlangan soat boshlanish vaqtidan kichik bo'lsa, demak keyingi kunga o'tadi
         if (kutilganVaqt.getTime() <= sana.getTime()) {
           kutilganVaqt.setDate(kutilganVaqt.getDate() + 1);
         }
@@ -202,7 +204,7 @@ export default function RentCarScreen() {
         mijoz_ism: mijozIsm.trim(),
         telefon_raqam: telefon.trim(),
         ijara_turi: ijaraTuri,
-        boshlanish_vaqti: boshlanishVaqti.toISOString(), // 🕒 Yozib qoyamiz
+        boshlanish_vaqti: boshlanishVaqti.toISOString(),
         kutilayotgan_vaqt: qaytishISO,
         tugash_vaqti: qaytishISO,
         asl_narx: Math.round(umumiySumma),
@@ -244,6 +246,17 @@ export default function RentCarScreen() {
     Math.round(price)
       .toString()
       .replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " UZS";
+
+  // 🌐 Web uchun aniq YYYY-MM-DDTHH:mm formatida sana va soatni tayyorlash funksiyasi
+  const getWebDatetimeLocalValue = (d: Date) => {
+    if (!d || isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, "0");
+    const day = d.getDate().toString().padStart(2, "0");
+    const hours = d.getHours().toString().padStart(2, "0");
+    const minutes = d.getMinutes().toString().padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
 
   const getWebTimeValue = (d: Date | null) => {
     if (!d || isNaN(d.getTime())) return "";
@@ -301,24 +314,26 @@ export default function RentCarScreen() {
           </View>
         </View>
 
-        {/* 🕒 Boshlanish vaqti bloki */}
+        {/* 🕒 Berilgan vaqt (Sana va vaqtni o'zgartirish) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Berilgan vaqt (Hozirgi vaqt)</Text>
+          <Text style={styles.sectionTitle}>Berilgan vaqt (Sana va Soat)</Text>
           <Text style={styles.helpText}>
-            Mashina ertaroq berilgan bo'lsa, vaqtni o'zgartiring:
+            Qog'ozdagi eski ijaralarni kiritish uchun sana va soatni ixtiyoriy
+            o'tmishga o'zgartiring:
           </Text>
 
           {Platform.OS === "web" ? (
+            /* 🌐 WEB UCHUN TO'LIQ SANANI TANLASH (datetime-local) */
             <View style={styles.inputWrapper}>
               <Ionicons
-                name="time"
+                name="calendar"
                 size={20}
                 color="#2563EB"
                 style={styles.inputIcon}
               />
               {createElement("input", {
-                type: "time",
-                value: getWebTimeValue(boshlanishVaqti),
+                type: "datetime-local",
+                value: getWebDatetimeLocalValue(boshlanishVaqti),
                 style: {
                   flex: 1,
                   border: "none",
@@ -332,60 +347,121 @@ export default function RentCarScreen() {
                 },
                 onChange: (e: any) => {
                   const val = e.target.value;
-                  if (val && val.includes(":")) {
-                    const [h, m] = val.split(":");
-                    if (h !== "" && m !== "") {
-                      const d = new Date(boshlanishVaqti);
-                      d.setHours(Number(h), Number(m), 0, 0);
-                      setBoshlanishVaqti(d);
+                  if (val) {
+                    const parsedDate = new Date(val);
+                    if (!isNaN(parsedDate.getTime())) {
+                      setBoshlanishVaqti(parsedDate);
                     }
                   }
                 },
               })}
             </View>
           ) : (
-            <TouchableOpacity
-              style={[
-                styles.inputWrapper,
-                { borderColor: "#BFDBFE", backgroundColor: "#EFF6FF" },
-              ]}
-              onPress={() => setShowStartPicker(true)}
-            >
-              <Ionicons
-                name="time"
-                size={20}
-                color="#2563EB"
-                style={styles.inputIcon}
-              />
-              <Text
+            /* 📱 TELEFON UCHUN SANA VA VAQTNI SILLIQ ALOHIDA TANLASH */
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
                 style={[
-                  styles.input,
+                  styles.inputWrapper,
                   {
-                    lineHeight: Platform.OS === "ios" ? 0 : 50,
-                    color: "#1E3A8A",
-                    fontWeight: "bold",
+                    borderColor: "#BFDBFE",
+                    backgroundColor: "#EFF6FF",
+                    marginBottom: 0,
                   },
                 ]}
+                onPress={() => setShowStartDatePicker(true)}
               >
-                {boshlanishVaqti.toLocaleTimeString("uz-UZ", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            </TouchableOpacity>
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color="#2563EB"
+                  style={styles.inputIcon}
+                />
+                <Text
+                  style={[
+                    styles.input,
+                    {
+                      lineHeight: Platform.OS === "ios" ? 0 : 50,
+                      color: "#1E3A8A",
+                      fontWeight: "bold",
+                    },
+                  ]}
+                >
+                  Sana: {boshlanishVaqti.toLocaleDateString("uz-UZ")}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.inputWrapper,
+                  { borderColor: "#BFDBFE", backgroundColor: "#EFF6FF" },
+                ]}
+                onPress={() => setShowStartTimePicker(true)}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color="#2563EB"
+                  style={styles.inputIcon}
+                />
+                <Text
+                  style={[
+                    styles.input,
+                    {
+                      lineHeight: Platform.OS === "ios" ? 0 : 50,
+                      color: "#1E3A8A",
+                      fontWeight: "bold",
+                    },
+                  ]}
+                >
+                  Soat:{" "}
+                  {boshlanishVaqti.toLocaleTimeString("uz-UZ", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
 
-          {showStartPicker && Platform.OS !== "web" && (
+          {/* 📱 Mobile Kalendar oynasi */}
+          {showStartDatePicker && Platform.OS !== "web" && (
+            <DateTimePicker
+              value={boshlanishVaqti}
+              mode="date"
+              display="default"
+              onValueChange={(event, selectedDate) => {
+                setShowStartDatePicker(false);
+                if (selectedDate) {
+                  const yangiSana = new Date(boshlanishVaqti);
+                  yangiSana.setFullYear(
+                    selectedDate.getFullYear(),
+                    selectedDate.getMonth(),
+                    selectedDate.getDate(),
+                  );
+                  setBoshlanishVaqti(yangiSana);
+                }
+              }}
+            />
+          )}
+
+          {/* 📱 Mobile Soat oynasi */}
+          {showStartTimePicker && Platform.OS !== "web" && (
             <DateTimePicker
               value={boshlanishVaqti}
               mode="time"
               is24Hour={true}
               display="default"
               onValueChange={(event, selectedDate) => {
-                if (Platform.OS === "android") setShowStartPicker(false);
-                if (selectedDate) setBoshlanishVaqti(selectedDate);
+                setShowStartTimePicker(false);
+                if (selectedDate) {
+                  const yangiSoat = new Date(boshlanishVaqti);
+                  yangiSoat.setHours(
+                    selectedDate.getHours(),
+                    selectedDate.getMinutes(),
+                  );
+                  setBoshlanishVaqti(yangiSoat);
+                }
               }}
-              onDismiss={() => setShowStartPicker(false)}
             />
           )}
         </View>
